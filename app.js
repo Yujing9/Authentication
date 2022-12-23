@@ -5,7 +5,10 @@ const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
 const encrypt = require('mongoose-encryption');
-const md5 = require('md5');
+// const md5 = require('md5');
+const bcrypt = require('bcrypt'); 
+const saltRounds = 10 ; 
+
 
 const app = express();
 
@@ -43,17 +46,18 @@ app.get("/login",function(req,res){
 });
 app.post("/login",function(req,res){
     const userName = req.body.username;
-    const passWord = md5(req.body.password);
+    const passWord = req.body.password;
 
     // Input variable whether they are equal to username and password
 
     User.findOne({email:userName},function(err,foundUser){
         if(!err){
             if (foundUser){
-                console.log(foundUser);
-                if (foundUser.password === passWord){
-                    res.render("secrets");
-                }
+                bcrypt.compare(passWord, foundUser.password, function(err, result) {
+                    if (result === true){
+                        res.render("secrets");
+                    }
+                });
             }
         }else{
             console.log(err)
@@ -65,17 +69,31 @@ app.get("/register",function(req,res){
 });
 
 app.post("/register",function(req,res){
-    const newUser = new User({
-        email:req.body.username, 
-        password:md5(req.body.password)
-    })
-    newUser.save(function(err){
-        if(err){
-            console.log(err);
-        }else{
-            res.render("secrets");
-        }
-    })
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        // Store hash in your password DB.
+        const newUser = new User({
+            email:req.body.username, 
+            password:hash
+        })
+        newUser.save(function(err){
+            if(err){
+                console.log(err);
+            }else{
+                res.render("secrets");
+            }
+        })
+    });
+    // const newUser = new User({
+    //     email:req.body.username, 
+    //     password:md5(req.body.password)
+    // })
+    // newUser.save(function(err){
+    //     if(err){
+    //         console.log(err);
+    //     }else{
+    //         res.render("secrets");
+    //     }
+    // })
 })
 
 app.listen(3000,function(){
