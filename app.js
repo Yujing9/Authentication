@@ -10,8 +10,10 @@ const bcrypt = require('bcrypt');
 const session = require('express-session');
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
+const findOrCreate = require('mongoose-findorcreate');
+const { authenticate } = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-//  
+
 
 
 const app = express();
@@ -43,10 +45,12 @@ mongoose.connect("mongodb://localhost:27017/userDB",{useNewUrlParser:true});
 
 const userSchema = new mongoose.Schema({
     email: String,
-    password: String
+    password: String,
+    googleId: String
 });
 
 userSchema.plugin(passportLocalMongoose);
+userSchema.plugin(findOrCreate);
 
 // because if we show the code in the github,everybody can see my secret.So not safe.
 // so we can use environment variables to keep secrets safe
@@ -71,9 +75,45 @@ passport.deserializeUser(function(User, done) {
     done(null, User);
 });
 
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/secrets"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    console.log(profile)
+    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
+
+
 app.get("/",function(req,res){
     res.render("home");
 });
+
+// app.get("/auth/google",function(req,res){
+//     // initiate authentication with Google
+//     passport.authenticate('google', { scope: ['profile'] },function(req,res){
+//         // Successful authentication, redirect to secrets.
+//     res.redirect("/auth/google/secrets");   
+//     })
+// });
+
+app.get("/auth/google",
+    passport.authenticate('google',{ scope: ["profile"] }),
+    function(req, res) {
+    // Successful authentication, redirect to secrets.
+        res.redirect("/auth/google/secrets");
+});
+
+app.get('/auth/google/secrets', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect secrets page.
+    res.redirect('/secrets');
+  });
 
 app.get("/login",function(req,res){
     res.render("login");
